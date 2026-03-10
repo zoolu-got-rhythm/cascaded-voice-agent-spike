@@ -1,0 +1,31 @@
+flowchart LR
+
+USER["fa:fa-user User"]
+
+%% CLIENT
+subgraph CLIENT["Client (Frontend)"]
+STT["fa:fa-microphone STT"]
+AVATAR["fa:fa-robot Avatar"]
+TTS["fa:fa-volume-up TTS"]
+end
+
+%% BACKEND
+subgraph BACKEND["Backend"]
+
+subgraph AI["AI Layer"]
+CLAUDE["fa:fa-brain Claude API"]
+end
+
+subgraph KNOWLEDGE["Knowledge Layer"]
+RAG[("fa:fa-database RAG Knowledge Base")]
+end
+
+end
+
+USER -- "speech" --> STT
+STT -- "audio stream" --> CLAUDE
+CLAUDE -- "response" --> AVATAR
+AVATAR -- "text" --> TTS
+TTS -- "voice" --> USER
+
+CLAUDE <--> RAG
