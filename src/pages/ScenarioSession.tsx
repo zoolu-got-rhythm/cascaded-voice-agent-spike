@@ -1,0 +1,181 @@
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Box, Typography, Button, Paper } from "@mui/material";
+import MicIcon from "@mui/icons-material/Mic";
+import Header from "../components/Header";
+import PageBreadcrumbs from "../components/PageBreadcrumbs";
+import { scenarios } from "../data/scenarios";
+
+export default function ScenarioSession() {
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const scenario = scenarios.find((s) => s.id === id);
+
+    const [isDone, setIsDone] = useState(false);
+    const [transcript] = useState<string[]>([]);
+
+    // Countdown timer — navigates home and marks done when time expires
+    useEffect(() => {
+        if (!scenario) return;
+        const totalSeconds = scenario.durationMins * 60;
+        let elapsed = 0;
+
+        const interval = setInterval(() => {
+            elapsed += 1;
+            if (elapsed >= totalSeconds) {
+                clearInterval(interval);
+                setIsDone(true);
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [scenario]);
+
+
+    if (!scenario) {
+        return (
+            <Box sx={{ p: 4 }}>
+                <Typography>Scenario not found.</Typography>
+                <Button onClick={() => navigate("/")}>Back</Button>
+            </Box>
+        );
+    }
+
+    return (
+        <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+            <Header />
+
+            <PageBreadcrumbs
+                crumbs={[
+                    { label: "training scenario", to: "/" },
+                    { label: scenario.title },
+                ]}
+            />
+
+            {/* Main layout */}
+            <Box sx={{ display: "flex", height: "calc(100vh - 96px)" }}>
+                {/* Centre panel */}
+                <Box
+                    sx={{
+                        flex: 1,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        p: 4,
+                        gap: 3,
+                        overflowY: "auto",
+                    }}
+                >
+                    {/* Persona image placeholder */}
+                    <Box
+                        sx={{
+                            width: 280,
+                            height: 220,
+                            border: "1px solid",
+                            borderColor: "divider",
+                            position: "relative",
+                            bgcolor: "grey.100",
+                            flexShrink: 0,
+                        }}
+                    />
+
+                    {/* Persona info */}
+                    <Box sx={{ display: "flex", gap: 4 }}>
+                        <Typography variant="body2">
+                            <strong>Persona:</strong> {scenario.persona.name}
+                        </Typography>
+                        <Typography variant="body2">
+                            <strong>age:</strong> {scenario.persona.age}
+                        </Typography>
+                        <Typography variant="body2">
+                            <strong>mood:</strong> {scenario.persona.mood}
+                        </Typography>
+                    </Box>
+
+                    <Typography
+                        variant="body2"
+                        sx={{ maxWidth: 340, textAlign: "center" }}
+                    >
+                        <strong>context:</strong> {scenario.persona.context}
+                    </Typography>
+
+
+                    {/* Mic */}
+                    <MicIcon sx={{ fontSize: 48, color: "text.primary" }} />
+
+                    {/* Done button */}
+                    <Button
+                        variant="contained"
+                        disabled={!isDone}
+                        onClick={() => navigate("/")}
+                        sx={{
+                            mt: 1,
+                            bgcolor: isDone ? "primary.main" : undefined,
+                            minWidth: 140,
+                        }}
+                    >
+                        I'm done
+                    </Button>
+
+                    {!isDone && (
+                        <Typography variant="caption" color="text.disabled">
+                            Button enables when conversation is complete or time
+                            expires
+                        </Typography>
+                    )}
+                </Box>
+
+                {/* Transcript sidebar */}
+                <Paper
+                    elevation={0}
+                    square
+                    sx={{
+                        width: 280,
+                        borderLeft: "1px solid",
+                        borderColor: "divider",
+                        display: "flex",
+                        flexDirection: "column",
+                        overflowY: "auto",
+                    }}
+                >
+                    <Box
+                        sx={{
+                            p: 2,
+                            borderBottom: "1px solid",
+                            borderColor: "divider",
+                        }}
+                    >
+                        <Typography variant="body2" fontWeight={600}>
+                            Transcript
+                        </Typography>
+                    </Box>
+                    <Box
+                        sx={{
+                            p: 2,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 1,
+                        }}
+                    >
+                        {transcript.length === 0 ? (
+                            <Typography variant="caption" color="text.disabled">
+                                Transcript will appear here as the conversation
+                                progresses.
+                            </Typography>
+                        ) : (
+                            transcript.map((line, i) => (
+                                <Typography
+                                    key={i}
+                                    variant="caption"
+                                    display="block"
+                                >
+                                    {line}
+                                </Typography>
+                            ))
+                        )}
+                    </Box>
+                </Paper>
+            </Box>
+        </Box>
+    );
+}
