@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Box, Typography, Button, Paper } from "@mui/material";
+import { Box, Typography, Button, Paper, IconButton } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
 import Header from "../components/Header";
 import PageBreadcrumbs from "../components/PageBreadcrumbs";
@@ -101,7 +101,9 @@ export default function ScenarioSession() {
 
 
                     {/* Mic */}
-                    <MicIcon sx={{ fontSize: 48, color: "text.primary" }} />
+                    <IconButton size="large" sx={{ bgcolor: "action.selected", "&:hover": { bgcolor: "action.focus" } }}>
+                        <MicIcon sx={{ fontSize: 48, color: "text.primary" }} />
+                    </IconButton>
 
                     {/* Done button */}
                     <Button
