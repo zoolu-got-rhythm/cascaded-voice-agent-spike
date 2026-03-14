@@ -1,31 +1,47 @@
 flowchart LR
+    %% User
+    U["User"]
 
-USER["fa:fa-user User"]
+    %% Frontend Layer
+    subgraph FE["Frontend Client"]
+        MIC["Microphone Input"]
+        WEB["Web App"]
+        AV["LiveAvatar Renderer"]
+    end
 
-%% CLIENT
-subgraph CLIENT["Client (Frontend)"]
-STT["fa:fa-microphone STT"]
-AVATAR["fa:fa-robot Avatar"]
-TTS["fa:fa-volume-up TTS"]
-end
+    %% Backend Layer
+    subgraph BE["Backend Voice Agent Server"]
+        WS["WebSocket Gateway"]
+        STTPIPE["Realtime STT Stream Handler"]
+        PROMPT["Prompt Builder"]
+        DK[("Domain Knowledge JSON")]
+    end
 
-%% BACKEND
-subgraph BACKEND["Backend"]
+    %% AI Services
+    subgraph AI["AI Services"]
+        DG["Deepgram Flux STT"]
+        CL["Claude API"]
+    end
 
-subgraph AI["AI Layer"]
-CLAUDE["fa:fa-brain Claude API"]
-end
+    %% Flow
+    U --> MIC
+    MIC --> WEB
 
-subgraph KNOWLEDGE["Knowledge Layer"]
-RAG[("fa:fa-database RAG Knowledge Base")]
-end
+    WEB -->|Audio Stream| WS
 
-end
+    WS --> STTPIPE
 
-USER -- "speech" --> STT
-STT -- "audio stream" --> CLAUDE
-CLAUDE -- "response" --> AVATAR
-AVATAR -- "text" --> TTS
-TTS -- "voice" --> USER
+    STTPIPE <--> |Realtime STT| DG
 
-CLAUDE <--> RAG
+    STTPIPE -->|Transcript| PROMPT
+    DK --> PROMPT
+
+    PROMPT -->|Prompt with transcript and domain knowledge| CL
+
+    CL -->|LLM Response| WS
+
+    WS -->|Response Text| WEB
+
+    WEB --> AV
+
+    AV -->|TTS Audio| U
