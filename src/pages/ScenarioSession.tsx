@@ -4,27 +4,39 @@ import { Box, Typography, Button, Paper, IconButton } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
 import Header from "../components/Header";
 import PageBreadcrumbs from "../components/PageBreadcrumbs";
-import { scenarios } from "../data/scenarios";
-import { LiveAvatarSession, SessionEvent, SessionState } from "@heygen/liveavatar-web-sdk";
+import { scenarios, type Scenario } from "../data/scenarios";
+import { LiveAvatarSession, SessionEvent, SessionState, AgentEventsEnum } from "@heygen/liveavatar-web-sdk";
 
 const HEYGEN_API_KEY = import.meta.env.VITE_HEYGEN_API_KEY as string;
 const HEYGEN_AVATAR_ID = import.meta.env.VITE_HEYGEN_AVATAR_ID as string;
 const DEEPGRAM_API_KEY = import.meta.env.VITE_DEEPGRAM_API_KEY as string;
-const CLAUDE_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY as string;
 
 type TranscriptEntry =
     | { role: "user"; text: string; confidence: number }
     | { role: "avatar"; text: string };
 
-type ClaudeMessage = { role: "user" | "assistant"; content: string };
-
-async function fetchHeygenToken(): Promise<string> {
+async function fetchHeygenToken(scenario: Scenario): Promise<string> {
+    const { persona } = scenario;
     const res = await fetch("https://api.liveavatar.com/v1/sessions/token", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-API-KEY": HEYGEN_API_KEY },
-        body: JSON.stringify({ avatar_id: HEYGEN_AVATAR_ID, mode: "CUSTOM", is_sandbox: true }),
+        body: JSON.stringify({
+            avatar_id: HEYGEN_AVATAR_ID,
+            mode: "FULL",
+            is_sandbox: true,
+            avatar_persona: {
+                persona_prompt:
+                    `You are ${persona.name}, a ${persona.age}-year-old customer in a retail game store. ` +
+                    `Your mood is ${persona.mood}. ${persona.context} ` +
+                    `Respond naturally and briefly as this customer (1-3 sentences). Stay in character.`,
+            },
+        }),
     });
-    if (!res.ok) throw new Error(`HeyGen token error: ${res.status}`);
+    if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        console.error("HeyGen token error:", res.status, JSON.stringify(body, null, 2));
+        throw new Error(`HeyGen token error: ${res.status}`);
+    }
     const { data } = await res.json();
     return data.session_token as string;
 }
@@ -44,47 +56,6 @@ export default function ScenarioSession() {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const dgWsRef = useRef<WebSocket | null>(null);
     const pttBufferRef = useRef<{ text: string; confidence: number }[]>([]);
-    const historyRef = useRef<ClaudeMessage[]>([]);
-
-    // ── Claude API ────────────────────────────────────────────────────────────
-    async function askClaude(userText: string): Promise<string | null> {
-        if (!scenario) return null;
-        const { persona } = scenario;
-        const system =
-            `You are ${persona.name}, a ${persona.age}-year-old customer in a retail game store. ` +
-            `Your mood is ${persona.mood}. ${persona.context} ` +
-            `Respond naturally and briefly as this customer (1-3 sentences). Stay in character.`;
-
-        historyRef.current = [...historyRef.current, { role: "user", content: userText }];
-
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "x-api-key": CLAUDE_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "anthropic-dangerous-direct-browser-access": "true",
-            },
-            body: JSON.stringify({
-                model: "claude-haiku-4-5-20251001",
-                max_tokens: 150,
-                system,
-                messages: historyRef.current,
-            }),
-        });
-
-        if (!res.ok) { console.error("Claude error:", res.status); return null; }
-        const data = await res.json();
-        const reply: string = data.content[0].text;
-        historyRef.current = [...historyRef.current, { role: "assistant", content: reply }];
-        return reply;
-    }
-
-    // ── Avatar speak helper ───────────────────────────────────────────────────
-    function avatarSpeak(text: string) {
-        setTranscript(prev => [...prev, { role: "avatar", text }]);
-        sessionRef.current?.repeat(text);
-    }
 
     // ── HeyGen session ────────────────────────────────────────────────────────
     useEffect(() => {
@@ -96,18 +67,19 @@ export default function ScenarioSession() {
             await stopPromiseRef.current;
             if (cancelled) return;
             try {
-                const token = await fetchHeygenToken();
+                const token = await fetchHeygenToken(scenario);
                 if (cancelled) return;
 
                 const session = new LiveAvatarSession(token);
                 localSession = session;
                 sessionRef.current = session;
 
-                // Patch: SDK WS handler doesn't support speak_text — route via WS with agent.* format
+                // Patch: SDK WS handler is missing avatar.speak_text — send as agent.speak_text.
+                // avatar.speak_response (message()) is left to go via LiveKit so FULL-mode LLM handles it.
                 const s = session as unknown as Record<string, unknown>;
                 const origSend = (s.sendCommandEvent as (...a: unknown[]) => void).bind(session);
                 s.sendCommandEvent = (cmd: { event_type: string; text?: string }) => {
-                    if (cmd.event_type === "avatar.speak_text" || cmd.event_type === "avatar.speak_response") {
+                    if (cmd.event_type === "avatar.speak_text") {
                         const ws = s._sessionEventSocket as WebSocket | null;
                         const eventId = crypto.randomUUID();
                         if (ws?.readyState === WebSocket.OPEN) {
@@ -130,11 +102,15 @@ export default function ScenarioSession() {
                     if (videoRef.current) session.attach(videoRef.current);
                 });
 
-                session.on(SessionEvent.SESSION_STATE_CHANGED, async (state) => {
+                // Capture avatar's spoken text for transcript
+                session.on(AgentEventsEnum.AVATAR_TRANSCRIPTION, (event) => {
+                    setTranscript(prev => [...prev, { role: "avatar", text: event.text }]);
+                });
+
+                session.on(SessionEvent.SESSION_STATE_CHANGED, (state) => {
                     if (state === SessionState.CONNECTED) {
-                        // Avatar opens the scenario with their opening line
-                        const opening = await askClaude("(start the scenario — introduce yourself and your reason for visiting the store in one sentence)");
-                        if (opening) avatarSpeak(opening);
+                        // Prompt avatar to open the scenario
+                        session.message("Please introduce yourself and tell me why you're visiting the store today.");
                     }
                 });
 
@@ -191,12 +167,11 @@ export default function ScenarioSession() {
         const ws = dgWsRef.current;
         dgWsRef.current = null;
 
-        // Tell Deepgram we're done — it will flush remaining transcripts then close
         await new Promise<void>(resolve => {
             if (!ws || ws.readyState !== WebSocket.OPEN) { resolve(); return; }
             ws.onclose = () => resolve();
             ws.send(JSON.stringify({ type: "CloseStream" }));
-            setTimeout(resolve, 1500); // fallback
+            setTimeout(resolve, 1500);
         });
         ws?.close();
 
@@ -206,8 +181,8 @@ export default function ScenarioSession() {
         buffer.forEach(e => setTranscript(prev => [...prev, { role: "user", ...e }]));
         const userText = buffer.map(e => e.text).join(" ");
 
-        const reply = await askClaude(userText);
-        if (reply) avatarSpeak(reply);
+        // Send STT text directly to HeyGen's FULL-mode LLM — avatar responds as the persona
+        sessionRef.current?.message(userText);
     }
 
     // ── Countdown timer ───────────────────────────────────────────────────────
@@ -274,7 +249,6 @@ export default function ScenarioSession() {
                         {isPTT ? "Listening…" : "Hold to talk"}
                     </Typography>
 
-                    {/* Done button */}
                     <Button
                         variant="contained"
                         disabled={!isDone}
