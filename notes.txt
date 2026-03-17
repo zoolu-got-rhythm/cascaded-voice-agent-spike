@@ -1,3 +1,6 @@
 use @heygen/liveavatar-web-sdk from npm for TTS
+example repo for liveAvatar: https://github.com/heygen-com/liveavatar-web-sdk?tab=readme-ov-file 
+
+
 claude api (haiku 4.5) for lowest latency
 see: https://github.com/deepgram-devs/deepgram-demos-flux-streaming for proxy web socket server demo code 
