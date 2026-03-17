@@ -22,7 +22,7 @@ async function fetchHeygenToken(): Promise<string> {
     const res = await fetch("https://api.liveavatar.com/v1/sessions/token", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-API-KEY": HEYGEN_API_KEY },
-        body: JSON.stringify({ avatar_id: HEYGEN_AVATAR_ID, mode: "CUSTOM", is_sandbox: false }),
+        body: JSON.stringify({ avatar_id: HEYGEN_AVATAR_ID, mode: "CUSTOM", is_sandbox: true }),
     });
     if (!res.ok) throw new Error(`HeyGen token error: ${res.status}`);
     const { data } = await res.json();
