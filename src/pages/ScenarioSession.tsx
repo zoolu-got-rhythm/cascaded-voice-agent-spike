@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Box, Typography, Button, Paper, IconButton } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
@@ -6,13 +6,58 @@ import Header from "../components/Header";
 import PageBreadcrumbs from "../components/PageBreadcrumbs";
 import { scenarios } from "../data/scenarios";
 
+const DEEPGRAM_API_KEY = import.meta.env.VITE_DEEPGRAM_API_KEY as string;
+
 export default function ScenarioSession() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const scenario = scenarios.find((s) => s.id === id);
 
     const [isDone, setIsDone] = useState(false);
-    const [transcript] = useState<string[]>([]);
+    const [transcript, setTranscript] = useState<string[]>([]);
+    const [isListening, setIsListening] = useState(false);
+
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const wsRef = useRef<WebSocket | null>(null);
+
+    async function startListening() {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        const ws = new WebSocket(
+            "wss://api.deepgram.com/v1/listen?model=nova-3&language=en-US&interim_results=false",
+            ["token", DEEPGRAM_API_KEY],
+        );
+        wsRef.current = ws;
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data as string);
+            const text: string = data?.channel?.alternatives?.[0]?.transcript;
+            if (text) setTranscript(prev => [...prev, text]);
+        };
+
+        ws.onopen = () => {
+            const recorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = recorder;
+            recorder.ondataavailable = (e) => {
+                if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
+            };
+            recorder.start(250);
+            setIsListening(true);
+        };
+    }
+
+    function stopListening() {
+        mediaRecorderRef.current?.stop();
+        mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop());
+        mediaRecorderRef.current = null;
+        wsRef.current?.close();
+        wsRef.current = null;
+        setIsListening(false);
+    }
+
+    function toggleMic() {
+        isListening ? stopListening() : startListening();
+    }
 
     // Countdown timer — navigates home and marks done when time expires
     useEffect(() => {
@@ -101,8 +146,15 @@ export default function ScenarioSession() {
 
 
                     {/* Mic */}
-                    <IconButton size="large" sx={{ bgcolor: "action.selected", "&:hover": { bgcolor: "action.focus" } }}>
-                        <MicIcon sx={{ fontSize: 48, color: "text.primary" }} />
+                    <IconButton
+                        size="large"
+                        onClick={toggleMic}
+                        sx={{
+                            bgcolor: isListening ? "error.main" : "action.selected",
+                            "&:hover": { bgcolor: isListening ? "error.dark" : "action.focus" },
+                        }}
+                    >
+                        <MicIcon sx={{ fontSize: 48, color: isListening ? "white" : "text.primary" }} />
                     </IconButton>
 
                     {/* Done button */}
