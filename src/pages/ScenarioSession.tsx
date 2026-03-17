@@ -14,7 +14,7 @@ export default function ScenarioSession() {
     const scenario = scenarios.find((s) => s.id === id);
 
     const [isDone, setIsDone] = useState(false);
-    const [transcript, setTranscript] = useState<string[]>([]);
+    const [transcript, setTranscript] = useState<{ text: string; confidence: number }[]>([]);
     const [isListening, setIsListening] = useState(false);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -31,8 +31,10 @@ export default function ScenarioSession() {
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data as string);
-            const text: string = data?.channel?.alternatives?.[0]?.transcript;
-            if (text) setTranscript(prev => [...prev, text]);
+            const alt = data?.channel?.alternatives?.[0];
+            if (alt?.transcript) {
+                setTranscript(prev => [...prev, { text: alt.transcript, confidence: alt.confidence ?? 1 }]);
+            }
         };
 
         ws.onopen = () => {
@@ -217,13 +219,20 @@ export default function ScenarioSession() {
                                 progresses.
                             </Typography>
                         ) : (
-                            transcript.map((line, i) => (
+                            transcript.map((entry, i) => (
                                 <Typography
                                     key={i}
                                     variant="caption"
                                     display="block"
+                                    sx={{
+                                        color: entry.confidence >= 0.9
+                                            ? "success.main"
+                                            : entry.confidence >= 0.7
+                                            ? "warning.main"
+                                            : "error.main",
+                                    }}
                                 >
-                                    {line}
+                                    me: {entry.text} ({Math.round(entry.confidence * 100)}%)
                                 </Typography>
                             ))
                         )}
