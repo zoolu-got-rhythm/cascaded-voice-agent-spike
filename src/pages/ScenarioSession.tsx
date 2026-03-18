@@ -55,6 +55,7 @@ export default function ScenarioSession() {
     const [isListening, setIsListening] = useState(false);
     const [showListening, setShowListening] = useState(false);
     const [isAvatarTalking, setIsAvatarTalking] = useState(true);
+    const [isPendingResponse, setIsPendingResponse] = useState(false);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const sessionRef = useRef<LiveAvatarSession | null>(null);
@@ -67,6 +68,7 @@ export default function ScenarioSession() {
     const isListeningRef = useRef(false);
     const isAvatarTalkingRef = useRef(true);
     const isAvatarReadyRef = useRef(false);
+    const isPendingResponseRef = useRef(false);
 
     // ── HeyGen session ────────────────────────────────────────────────────────
     useEffect(() => {
@@ -126,6 +128,8 @@ export default function ScenarioSession() {
                 });
 
                 session.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, () => {
+                    isPendingResponseRef.current = false;
+                    setIsPendingResponse(false);
                     isAvatarTalkingRef.current = true;
                     setIsAvatarTalking(true);
                     stopListening();
@@ -239,6 +243,8 @@ export default function ScenarioSession() {
         const buffer = pttBufferRef.current;
         if (buffer.length === 0) return;
 
+        isPendingResponseRef.current = true;
+        setIsPendingResponse(true);
         buffer.forEach(e => setTranscript(prev => [...prev, { role: "user", ...e }]));
         const userText = buffer.map(e => e.text).join(" ");
 
@@ -255,7 +261,7 @@ export default function ScenarioSession() {
     }
 
     function handleMicClick() {
-        if (isAvatarTalkingRef.current || !isAvatarReadyRef.current) return;
+        if (isAvatarTalkingRef.current || !isAvatarReadyRef.current || isPendingResponseRef.current) return;
         if (isListeningRef.current) stopListening();
         else startListening();
     }
@@ -316,13 +322,13 @@ export default function ScenarioSession() {
                     <IconButton
                         size="large"
                         onClick={handleMicClick}
-                        disabled={isAvatarTalking || !isAvatarReady}
+                        disabled={isAvatarTalking || !isAvatarReady || isPendingResponse}
                         sx={{
-                            bgcolor: (isAvatarTalking || !isAvatarReady) ? "action.disabledBackground" : isListening ? "error.main" : "action.selected",
+                            bgcolor: (isAvatarTalking || !isAvatarReady || isPendingResponse) ? "action.disabledBackground" : isListening ? "error.main" : "action.selected",
                             "&:hover": { bgcolor: isListening ? "error.dark" : "action.focus" },
                         }}
                     >
-                        {(isAvatarTalking || !isAvatarReady)
+                        {(isAvatarTalking || !isAvatarReady || isPendingResponse)
                             ? <MicOffIcon sx={{ fontSize: 48 }} />
                             : isListening && !showListening
                                 ? <CircularProgress size={32} sx={{ color: "white" }} />
