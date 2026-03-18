@@ -58,6 +58,7 @@ export default function ScenarioSession() {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const dgWsRef = useRef<WebSocket | null>(null);
     const pttBufferRef = useRef<{ text: string; confidence: number }[]>([]);
+    const transcriptEndRef = useRef<HTMLDivElement>(null);
 
     // ── HeyGen session ────────────────────────────────────────────────────────
     useEffect(() => {
@@ -207,6 +208,10 @@ export default function ScenarioSession() {
         );
     }
 
+    useEffect(() => {
+        transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [transcript]);
+
     if (!scenario) {
         return (
             <Box sx={{ p: 4 }}>
@@ -298,19 +303,33 @@ export default function ScenarioSession() {
                         ) : (
                             transcript.map((entry, i) =>
                                 entry.role === "user" ? (
-                                    <Typography key={i} variant="caption" display="block" sx={{
-                                        textAlign: "left",
-                                        color: entry.confidence >= 0.9 ? "success.main" : entry.confidence >= 0.7 ? "warning.main" : "error.main",
-                                    }}>
-                                        me: {entry.text} ({Math.round(entry.confidence * 100)}%)
-                                    </Typography>
+                                    <Box key={i} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "flex-end", gap: 0.75 }}>
+                                        <Box sx={{ width: "60%", bgcolor: "grey.200", borderRadius: "12px 12px 0 12px", px: 1.25, py: 0.75 }}>
+                                            <Typography variant="caption" sx={{
+                                                color: entry.confidence >= 0.9 ? "success.main" : entry.confidence >= 0.7 ? "warning.main" : "error.main",
+                                            }}>
+                                                {entry.text} ({Math.round(entry.confidence * 100)}%)
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={{ bgcolor: "grey.300", borderRadius: 1, px: 0.75, py: 0.5, flexShrink: 0 }}>
+                                            <Typography variant="caption" fontWeight={600}>me</Typography>
+                                        </Box>
+                                    </Box>
                                 ) : (
-                                    <Typography key={i} variant="caption" display="block" sx={{ textAlign: "right", color: "info.main" }}>
-                                        {scenario.persona.name}: {entry.text}
-                                    </Typography>
+                                    <Box key={i} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "flex-start", gap: 0.75 }}>
+                                        <Box sx={{ bgcolor: "grey.300", borderRadius: 1, px: 0.75, py: 0.5, flexShrink: 0 }}>
+                                            <Typography variant="caption" fontWeight={600}>{scenario.persona.name}</Typography>
+                                        </Box>
+                                        <Box sx={{ width: "60%", bgcolor: "grey.200", borderRadius: "12px 12px 12px 0", px: 1.25, py: 0.75 }}>
+                                            <Typography variant="caption" sx={{ color: "info.main" }}>
+                                                {entry.text}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
                                 )
                             )
                         )}
+                        <div ref={transcriptEndRef} />
                     </Box>
                 </Paper>
             </Box>
