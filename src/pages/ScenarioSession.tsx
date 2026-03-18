@@ -51,7 +51,9 @@ export default function ScenarioSession() {
     const [isDone, setIsDone] = useState(false);
     const [isAvatarReady, setIsAvatarReady] = useState(false);
     const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
-    const [isPTT, setIsPTT] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+    const [showListening, setShowListening] = useState(false);
+    const [isAvatarTalking, setIsAvatarTalking] = useState(true);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const sessionRef = useRef<LiveAvatarSession | null>(null);
@@ -60,6 +62,8 @@ export default function ScenarioSession() {
     const dgWsRef = useRef<WebSocket | null>(null);
     const pttBufferRef = useRef<{ text: string; confidence: number }[]>([]);
     const transcriptEndRef = useRef<HTMLDivElement>(null);
+    const listenDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isListeningRef = useRef(false);
 
     // ── HeyGen session ────────────────────────────────────────────────────────
     useEffect(() => {
@@ -117,6 +121,16 @@ export default function ScenarioSession() {
                     setTranscript(prev => [...prev, { role: "avatar", text: event.text }]);
                 });
 
+                session.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, () => {
+                    setIsAvatarTalking(true);
+                    stopListening();
+                });
+
+                session.on(AgentEventsEnum.AVATAR_SPEAK_ENDED, () => {
+                    setIsAvatarTalking(false);
+                    startListening();
+                });
+
                 session.on(SessionEvent.SESSION_STATE_CHANGED, (state) => {
                     if (state === SessionState.CONNECTED) {
                         const { persona } = scenario!;
@@ -150,8 +164,24 @@ export default function ScenarioSession() {
         };
     }, [scenario]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── Push-to-talk ──────────────────────────────────────────────────────────
-    async function startPTT() {
+    // ── Click-to-talk ─────────────────────────────────────────────────────────
+    function playBeep(frequency: number) {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.15);
+    }
+
+    async function startListening() {
+        if (isListeningRef.current) return;
+        isListeningRef.current = true;
+        setIsListening(true);
         pttBufferRef.current = [];
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const ws = new WebSocket(
@@ -170,12 +200,21 @@ export default function ScenarioSession() {
             mediaRecorderRef.current = recorder;
             recorder.ondataavailable = (e) => { if (ws.readyState === WebSocket.OPEN) ws.send(e.data); };
             recorder.start(250);
-            setIsPTT(true);
         };
+
+        listenDelayRef.current = setTimeout(() => {
+            setShowListening(true);
+            playBeep(660);
+        }, 500);
     }
 
-    async function stopPTT() {
-        setIsPTT(false);
+    async function stopListening() {
+        if (!isListeningRef.current) return;
+        isListeningRef.current = false;
+        if (listenDelayRef.current) { clearTimeout(listenDelayRef.current); listenDelayRef.current = null; }
+        setIsListening(false);
+        setShowListening(false);
+
         mediaRecorderRef.current?.stop();
         mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop());
         mediaRecorderRef.current = null;
@@ -207,6 +246,10 @@ export default function ScenarioSession() {
             `The store assistant just said: "${userText}". ` +
             `Respond as ${persona.name} in 1-2 sentences, in character.`
         );
+    }
+
+    function handleMicClick() {
+        if (isListening) stopListening();
     }
 
     useEffect(() => {
@@ -261,34 +304,34 @@ export default function ScenarioSession() {
                         <strong>context:</strong> {scenario.persona.context}
                     </Typography>
 
-                    {/* Push-to-talk mic */}
+                    {/* Click-to-stop mic */}
                     <IconButton
                         size="large"
-                        onMouseDown={startPTT}
-                        onMouseUp={stopPTT}
-                        onMouseLeave={() => { if (isPTT) stopPTT(); }}
-                        onTouchStart={startPTT}
-                        onTouchEnd={stopPTT}
+                        onClick={handleMicClick}
+                        disabled={isAvatarTalking}
                         sx={{
-                            bgcolor: isPTT ? "error.main" : "action.selected",
-                            "&:hover": { bgcolor: isPTT ? "error.dark" : "action.focus" },
-                            userSelect: "none",
+                            bgcolor: isAvatarTalking ? "action.disabledBackground" : isListening ? "error.main" : "action.selected",
+                            "&:hover": { bgcolor: isListening ? "error.dark" : "action.focus" },
                         }}
                     >
-                        <MicIcon sx={{ fontSize: 48, color: isPTT ? "white" : "text.primary" }} />
+                        {isListening && !showListening
+                            ? <CircularProgress size={32} sx={{ color: "white" }} />
+                            : <MicIcon sx={{ fontSize: 48, color: isListening ? "white" : "text.primary" }} />
+                        }
                     </IconButton>
                     <Typography variant="caption" color="text.disabled">
-                        {isPTT ? "Listening…" : "Hold to talk"}
+                        {!isAvatarReady ? "Avatar is loading…" : isAvatarTalking ? "Avatar is talking…" : showListening ? "Listening… (click to stop)" : ""}
                     </Typography>
 
-                    <Button
-                        variant="contained"
-                        disabled={!isDone}
-                        onClick={() => navigate("/")}
-                        sx={{ mt: 1, bgcolor: isDone ? "primary.main" : undefined, minWidth: 140 }}
-                    >
-                        I'm done
-                    </Button>
+                    {isDone && !isListening && (
+                        <Button
+                            variant="contained"
+                            onClick={() => navigate("/")}
+                            sx={{ mt: 1, minWidth: 140 }}
+                        >
+                            I'm done
+                        </Button>
+                    )}
                 </Box>
 
                 {/* Transcript sidebar */}
