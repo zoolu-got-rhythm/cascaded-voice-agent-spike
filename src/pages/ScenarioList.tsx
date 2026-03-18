@@ -60,18 +60,6 @@ export default function ScenarioList() {
                             }
                         />
 
-                        {/* {scenario.score !== undefined ? (
-              <Chip
-                label={`${scenario.score}/100`}
-                size="small"
-                variant="outlined"
-                sx={{ ml: 2, fontWeight: 600 }}
-              />
-            ) : (
-              <Typography variant="body2" color="text.disabled" sx={{ ml: 2 }}>
-                • • •
-              </Typography>
-            )} */}
                     </ListItemButton>
                 ))}
             </List>
