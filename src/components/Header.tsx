@@ -23,7 +23,7 @@ export default function Header() {
                     Video Game Retail
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                    Customer Service Virtual Training
+                    Customer Service Training Agents
                 </Typography>
             </Box>
         </Box>

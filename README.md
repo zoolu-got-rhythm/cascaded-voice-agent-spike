@@ -1,3 +1,16 @@
+# cascaded voice agent (deepgram STT -> LiveAvatar TTS) Spike
+
+
+
+articles: 
+https://elevenlabs.io/blog/cascaded-vs-fused-models 
+
+thoughts: 
+- how to get the latency down as much as possible with cascaded voice agent systems/models?
+
+
+
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
