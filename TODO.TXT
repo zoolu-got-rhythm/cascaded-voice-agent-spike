@@ -1,1 +1,0 @@
-- realtime streaming of user transcript before even finished go (or pressed stop), give those chunks to live avatar in prep for faster response times?
