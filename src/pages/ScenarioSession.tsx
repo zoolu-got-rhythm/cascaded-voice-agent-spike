@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Box, Typography, Button, Paper, IconButton, CircularProgress, Skeleton } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
 import MicOffIcon from "@mui/icons-material/MicOff";
+import StopIcon from "@mui/icons-material/Stop";
 import Header from "../components/Header";
 import PageBreadcrumbs from "../components/PageBreadcrumbs";
 import CountdownClock from "../components/CountdownClock";
@@ -56,6 +57,7 @@ export default function ScenarioSession() {
     const [showListening, setShowListening] = useState(false);
     const [isAvatarTalking, setIsAvatarTalking] = useState(true);
     const [isPendingResponse, setIsPendingResponse] = useState(false);
+    const [isRetry, setIsRetry] = useState(false);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const sessionRef = useRef<LiveAvatarSession | null>(null);
@@ -191,6 +193,7 @@ export default function ScenarioSession() {
     async function startListening() {
         if (isListeningRef.current) return;
         isListeningRef.current = true;
+        setIsRetry(false);
         setIsListening(true);
         pttBufferRef.current = [];
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -221,6 +224,9 @@ export default function ScenarioSession() {
     async function stopListening() {
         if (!isListeningRef.current) return;
         isListeningRef.current = false;
+        // Lock the mic immediately — before any async work
+        isPendingResponseRef.current = true;
+        setIsPendingResponse(true);
         if (listenDelayRef.current) { clearTimeout(listenDelayRef.current); listenDelayRef.current = null; }
         setIsListening(false);
         setShowListening(false);
@@ -241,10 +247,12 @@ export default function ScenarioSession() {
         ws?.close();
 
         const buffer = pttBufferRef.current;
-        if (buffer.length === 0) return;
-
-        isPendingResponseRef.current = true;
-        setIsPendingResponse(true);
+        if (buffer.length === 0) {
+            isPendingResponseRef.current = false;
+            setIsPendingResponse(false);
+            setIsRetry(true);
+            return;
+        }
         buffer.forEach(e => setTranscript(prev => [...prev, { role: "user", ...e }]));
         const userText = buffer.map(e => e.text).join(" ");
 
@@ -332,11 +340,27 @@ export default function ScenarioSession() {
                             ? <MicOffIcon sx={{ fontSize: 48 }} />
                             : isListening && !showListening
                                 ? <CircularProgress size={32} sx={{ color: "white" }} />
-                                : <MicIcon sx={{ fontSize: 48, color: isListening ? "white" : "text.primary" }} />
+                                : isListening
+                                    ? <StopIcon sx={{ fontSize: 48, color: "white" }} />
+                                    : <MicIcon sx={{ fontSize: 48, color: "text.primary" }} />
                         }
                     </IconButton>
-                    <Typography variant="caption" color="text.disabled">
-                        {!isAvatarReady ? "Avatar is loading…" : isAvatarTalking ? "Avatar is talking…" : showListening ? "Listening… (click to stop)" : ""}
+                    <Typography
+                        variant="caption"
+                        color="text.disabled"
+                        sx={showListening ? {
+                            animation: "listenPulse 4s ease-in-out infinite",
+                            "@keyframes listenPulse": {
+                                "0%":   { opacity: 1 },
+                                "10%":  { opacity: 0.15 },
+                                "20%":  { opacity: 1 },
+                                "30%":  { opacity: 0.15 },
+                                "40%":  { opacity: 1 },
+                                "100%": { opacity: 1 },
+                            },
+                        } : undefined}
+                    >
+                        {!isAvatarReady ? "Avatar is loading…" : isAvatarTalking ? "Avatar is talking…" : showListening ? "🎙 Listening… (click to stop)" : isRetry ? "Retry" : ""}
                     </Typography>
 
                     {isDone && !isListening && (
