@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Box, Typography, Button, Paper, IconButton } from "@mui/material";
+import { Box, Typography, Button, Paper, IconButton, CircularProgress, Skeleton } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
 import Header from "../components/Header";
 import PageBreadcrumbs from "../components/PageBreadcrumbs";
+import CountdownClock from "../components/CountdownClock";
 import { scenarios, type Scenario } from "../data/scenarios";
 import { LiveAvatarSession, SessionEvent, SessionState, AgentEventsEnum } from "@heygen/liveavatar-web-sdk";
 
@@ -47,6 +48,7 @@ export default function ScenarioSession() {
     const scenario = scenarios.find((s) => s.id === id);
 
     const [isDone, setIsDone] = useState(false);
+    const [isAvatarReady, setIsAvatarReady] = useState(false);
     const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
     const [isPTT, setIsPTT] = useState(false);
 
@@ -105,6 +107,7 @@ export default function ScenarioSession() {
 
                 session.on(SessionEvent.SESSION_STREAM_READY, () => {
                     if (videoRef.current) session.attach(videoRef.current);
+                    setIsAvatarReady(true);
                 });
 
                 // Capture avatar's spoken text for transcript
@@ -204,17 +207,6 @@ export default function ScenarioSession() {
         );
     }
 
-    // ── Countdown timer ───────────────────────────────────────────────────────
-    useEffect(() => {
-        if (!scenario) return;
-        let elapsed = 0;
-        const interval = setInterval(() => {
-            elapsed += 1;
-            if (elapsed >= scenario.durationMins * 60) { clearInterval(interval); setIsDone(true); }
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [scenario]);
-
     if (!scenario) {
         return (
             <Box sx={{ p: 4 }}>
@@ -233,9 +225,24 @@ export default function ScenarioSession() {
                 {/* Centre panel */}
                 <Box sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", p: 4, gap: 3, overflowY: "auto" }}>
 
+                    {/* Countdown clock — only shown once avatar is ready */}
+                    {isAvatarReady ? (
+                        <CountdownClock
+                            durationSecs={scenario.durationMins * 60}
+                            onTimeOver={() => setIsDone(true)}
+                        />
+                    ) : (
+                        <Skeleton variant="text" width={80} height={40} />
+                    )}
+
                     {/* Avatar video */}
-                    <Box sx={{ width: 280, height: 220, border: "1px solid", borderColor: "divider", bgcolor: "grey.900", flexShrink: 0, overflow: "hidden" }}>
+                    <Box sx={{ position: "relative", width: 280, height: 220, border: "1px solid", borderColor: "divider", bgcolor: "grey.900", flexShrink: 0, overflow: "hidden" }}>
                         <video ref={videoRef} autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        {!isAvatarReady && (
+                            <Box sx={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <CircularProgress />
+                            </Box>
+                        )}
                     </Box>
 
                     {/* Persona info */}
@@ -279,7 +286,7 @@ export default function ScenarioSession() {
                 </Box>
 
                 {/* Transcript sidebar */}
-                <Paper elevation={0} square sx={{ width: 280, borderLeft: "1px solid", borderColor: "divider", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+                <Paper elevation={0} square sx={{ width: 340, borderLeft: "1px solid", borderColor: "divider", display: "flex", flexDirection: "column", overflowY: "auto" }}>
                     <Box sx={{ p: 2, borderBottom: "1px solid", borderColor: "divider" }}>
                         <Typography variant="body2" fontWeight={600}>Transcript</Typography>
                     </Box>
@@ -292,12 +299,13 @@ export default function ScenarioSession() {
                             transcript.map((entry, i) =>
                                 entry.role === "user" ? (
                                     <Typography key={i} variant="caption" display="block" sx={{
+                                        textAlign: "left",
                                         color: entry.confidence >= 0.9 ? "success.main" : entry.confidence >= 0.7 ? "warning.main" : "error.main",
                                     }}>
                                         me: {entry.text} ({Math.round(entry.confidence * 100)}%)
                                     </Typography>
                                 ) : (
-                                    <Typography key={i} variant="caption" display="block" sx={{ color: "info.main" }}>
+                                    <Typography key={i} variant="caption" display="block" sx={{ textAlign: "right", color: "info.main" }}>
                                         {scenario.persona.name}: {entry.text}
                                     </Typography>
                                 )
