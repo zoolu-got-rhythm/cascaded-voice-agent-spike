@@ -323,45 +323,49 @@ export default function ScenarioSession() {
                         <Typography variant="body2"><strong>mood:</strong> {scenario.persona.mood}</Typography>
                     </Box>
                     <Typography variant="body2" sx={{ maxWidth: 340, textAlign: "center" }}>
-                        <strong>context:</strong> {scenario.persona.context}
+                        <strong>context:</strong> {scenario.persona.scenarioDescription}
                     </Typography>
 
-                    {/* Click-to-stop mic */}
-                    <IconButton
-                        size="large"
-                        onClick={handleMicClick}
-                        disabled={isAvatarTalking || !isAvatarReady || isPendingResponse}
-                        sx={{
-                            bgcolor: (isAvatarTalking || !isAvatarReady || isPendingResponse) ? "action.disabledBackground" : isListening ? "error.main" : "action.selected",
-                            "&:hover": { bgcolor: isListening ? "error.dark" : "action.focus" },
-                        }}
-                    >
-                        {(isAvatarTalking || !isAvatarReady || isPendingResponse)
-                            ? <MicOffIcon sx={{ fontSize: 48 }} />
-                            : isListening && !showListening
-                                ? <CircularProgress size={32} sx={{ color: "white" }} />
-                                : isListening
-                                    ? <StopIcon sx={{ fontSize: 48, color: "white" }} />
-                                    : <MicIcon sx={{ fontSize: 48, color: "text.primary" }} />
-                        }
-                    </IconButton>
-                    <Typography
-                        variant="caption"
-                        color="text.disabled"
-                        sx={showListening ? {
-                            animation: "listenPulse 4s ease-in-out infinite",
-                            "@keyframes listenPulse": {
-                                "0%":   { opacity: 1 },
-                                "10%":  { opacity: 0.15 },
-                                "20%":  { opacity: 1 },
-                                "30%":  { opacity: 0.15 },
-                                "40%":  { opacity: 1 },
-                                "100%": { opacity: 1 },
-                            },
-                        } : undefined}
-                    >
-                        {!isAvatarReady ? "Avatar is loading…" : isAvatarTalking ? "Avatar is talking…" : showListening ? "🎙 Listening… (click to stop)" : isRetry ? "Retry" : ""}
-                    </Typography>
+                    {/* Click-to-stop mic — hidden once time is up and user is not talking */}
+                    {!(isDone && !isListening) && (
+                        <>
+                            <IconButton
+                                size="large"
+                                onClick={handleMicClick}
+                                disabled={isAvatarTalking || !isAvatarReady || isPendingResponse}
+                                sx={{
+                                    bgcolor: (isAvatarTalking || !isAvatarReady || isPendingResponse) ? "action.disabledBackground" : isListening ? "error.main" : "action.selected",
+                                    "&:hover": { bgcolor: isListening ? "error.dark" : "action.focus" },
+                                }}
+                            >
+                                {(isAvatarTalking || !isAvatarReady || isPendingResponse)
+                                    ? <MicOffIcon sx={{ fontSize: 48 }} />
+                                    : isListening && !showListening
+                                        ? <CircularProgress size={32} sx={{ color: "white" }} />
+                                        : isListening
+                                            ? <StopIcon sx={{ fontSize: 48, color: "white" }} />
+                                            : <MicIcon sx={{ fontSize: 48, color: "text.primary" }} />
+                                }
+                            </IconButton>
+                            <Typography
+                                variant="caption"
+                                color="text.disabled"
+                                sx={showListening ? {
+                                    animation: "listenPulse 4s ease-in-out infinite",
+                                    "@keyframes listenPulse": {
+                                        "0%":   { opacity: 1 },
+                                        "10%":  { opacity: 0.15 },
+                                        "20%":  { opacity: 1 },
+                                        "30%":  { opacity: 0.15 },
+                                        "40%":  { opacity: 1 },
+                                        "100%": { opacity: 1 },
+                                    },
+                                } : undefined}
+                            >
+                                {!isAvatarReady ? "Avatar is loading…" : isAvatarTalking ? "Avatar is talking…" : showListening ? "🎙 Listening… (click to stop)" : isRetry ? "Retry" : ""}
+                            </Typography>
+                        </>
+                    )}
 
                     {isDone && !isListening && (
                         <Button
@@ -369,7 +373,7 @@ export default function ScenarioSession() {
                             onClick={() => navigate("/")}
                             sx={{ mt: 1, minWidth: 140 }}
                         >
-                            I'm done
+                            Finish scenario
                         </Button>
                     )}
                 </Box>
