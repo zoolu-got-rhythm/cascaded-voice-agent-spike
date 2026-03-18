@@ -1,6 +1,8 @@
 import { Box, Typography } from "@mui/material";
+import { useNavigate } from "react-router-dom";
 
 export default function Header() {
+  const navigate = useNavigate();
   return (
     <Box
       sx={{
@@ -15,7 +17,8 @@ export default function Header() {
         <Typography
           variant="h5"
           fontWeight={900}
-          sx={{ letterSpacing: -1, lineHeight: 1 }}
+          onClick={() => navigate("/")}
+          sx={{ letterSpacing: -1, lineHeight: 1, cursor: "pointer" }}
         >
           CEX
         </Typography>
