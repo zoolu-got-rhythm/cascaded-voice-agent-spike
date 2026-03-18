@@ -78,6 +78,7 @@ export default function ScenarioSession() {
     const [isAvatarTalking, setIsAvatarTalking] = useState(true);
     const [isPendingResponse, setIsPendingResponse] = useState(false);
     const [isRetry, setIsRetry] = useState(false);
+    const [liveUserText, setLiveUserText] = useState("");
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const sessionRef = useRef<LiveAvatarSession | null>(null);
@@ -252,20 +253,25 @@ export default function ScenarioSession() {
             audio: true,
         });
         const ws = new WebSocket(
-            "wss://api.deepgram.com/v1/listen?model=nova-3&language=en-US&interim_results=false",
+            "wss://api.deepgram.com/v1/listen?model=nova-3&language=en-US&interim_results=true",
             ["token", DEEPGRAM_API_KEY],
         );
         dgWsRef.current = ws;
 
         ws.onmessage = (event) => {
-            console.log("recieving transcript", event.data);
-            const alt = JSON.parse(event.data as string)?.channel
-                ?.alternatives?.[0];
-            if (alt?.transcript)
+            const parsed = JSON.parse(event.data as string);
+            const alt = parsed?.channel?.alternatives?.[0];
+            if (!alt?.transcript) return;
+            if (parsed.is_final) {
                 pttBufferRef.current.push({
                     text: alt.transcript,
                     confidence: alt.confidence ?? 1,
                 });
+            }
+            // Update live bubble: accumulated finals + current interim
+            const finalsText = pttBufferRef.current.map((e) => e.text).join(" ");
+            const interimText = parsed.is_final ? "" : alt.transcript;
+            setLiveUserText([finalsText, interimText].filter(Boolean).join(" "));
         };
 
         ws.onopen = () => {
@@ -283,7 +289,7 @@ export default function ScenarioSession() {
         }, 500);
     }
 
-    async function stopListening() {
+    function stopListening() {
         if (!isListeningRef.current) return;
         isListeningRef.current = false;
         // Lock the mic immediately — before any async work
@@ -300,20 +306,15 @@ export default function ScenarioSession() {
         mediaRecorderRef.current?.stream.getTracks().forEach((t) => t.stop());
         mediaRecorderRef.current = null;
 
+        // Close Deepgram WS async — don't block sending to LiveAvatar
         const ws = dgWsRef.current;
         dgWsRef.current = null;
-
-        await new Promise<void>((resolve) => {
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                resolve();
-                return;
-            }
-            ws.onclose = () => resolve();
+        if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: "CloseStream" }));
-            setTimeout(resolve, 1500);
-        });
-        ws?.close();
+            setTimeout(() => ws.close(), 1500);
+        }
 
+        setLiveUserText("");
         const buffer = pttBufferRef.current;
         if (buffer.length === 0) {
             isPendingResponseRef.current = false;
@@ -353,7 +354,7 @@ export default function ScenarioSession() {
 
     useEffect(() => {
         transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [transcript]);
+    }, [transcript, liveUserText]);
 
     if (!scenario) {
         return (
@@ -580,7 +581,7 @@ export default function ScenarioSession() {
                             gap: 1,
                         }}
                     >
-                        {transcript.length === 0 ? (
+                        {transcript.length === 0 && !liveUserText ? (
                             <Typography variant="caption" color="text.disabled">
                                 Transcript will appear here as the conversation
                                 progresses.
@@ -604,6 +605,15 @@ export default function ScenarioSession() {
                                     />
                                 ),
                             )
+                        )}
+                        {liveUserText && (
+                            <Box sx={{ opacity: 0.5, fontStyle: "italic" }}>
+                                <TranscriptBubble
+                                    name="me"
+                                    text={liveUserText}
+                                    align="right"
+                                />
+                            </Box>
                         )}
                         <div ref={transcriptEndRef} />
                     </Box>
