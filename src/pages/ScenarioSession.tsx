@@ -559,7 +559,7 @@ export default function ScenarioSession() {
                         borderColor: "divider",
                         display: "flex",
                         flexDirection: "column",
-                        overflowY: "auto",
+                        overflow: "hidden",
                     }}
                 >
                     <Box
@@ -579,6 +579,8 @@ export default function ScenarioSession() {
                             display: "flex",
                             flexDirection: "column",
                             gap: 1,
+                            overflowY: "auto",
+                            flex: 1,
                         }}
                     >
                         {transcript.length === 0 && !liveUserText ? (
