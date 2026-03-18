@@ -67,7 +67,7 @@ export default function ScenarioSession() {
             await stopPromiseRef.current;
             if (cancelled) return;
             try {
-                const token = await fetchHeygenToken(scenario);
+                const token = await fetchHeygenToken(scenario!);
                 if (cancelled) return;
 
                 const session = new LiveAvatarSession(token);
@@ -79,11 +79,16 @@ export default function ScenarioSession() {
                 const s = session as unknown as Record<string, unknown>;
                 const origSend = (s.sendCommandEvent as (...a: unknown[]) => void).bind(session);
                 s.sendCommandEvent = (cmd: { event_type: string; text?: string }) => {
-                    if (cmd.event_type === "avatar.speak_text") {
+                    const wsTypeMap: Record<string, string> = {
+                        "avatar.speak_text": "agent.speak_text",      // repeat() — avatar speaks text directly
+                        "avatar.speak_response": "agent.user_input",   // message() — user input to FULL-mode LLM
+                    };
+                    const wsType = wsTypeMap[cmd.event_type];
+                    if (wsType) {
                         const ws = s._sessionEventSocket as WebSocket | null;
                         const eventId = crypto.randomUUID();
                         if (ws?.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({ type: "agent.speak_text", text: cmd.text, event_id: eventId }));
+                            ws.send(JSON.stringify({ type: wsType, text: cmd.text, event_id: eventId }));
                         } else {
                             const room = s.room as { state: string; localParticipant: { publishData: (d: Uint8Array, o: object) => void } };
                             if (room?.state === "connected") {
@@ -109,8 +114,14 @@ export default function ScenarioSession() {
 
                 session.on(SessionEvent.SESSION_STATE_CHANGED, (state) => {
                     if (state === SessionState.CONNECTED) {
-                        // Prompt avatar to open the scenario
-                        session.message("Please introduce yourself and tell me why you're visiting the store today.");
+                        const { persona } = scenario!;
+                        const facts = persona.implicitFacts.map((f, i) => `${i + 1}. ${f}`).join(" ");
+                        session.message(
+                            `You are ${persona.name}, a ${persona.age}-year-old customer. ` +
+                            `Your mood is ${persona.mood}. ${persona.context} ` +
+                            `You also have the following private knowledge that you must NEVER volunteer unprompted — only reveal each fact if the assistant directly asks: ${facts} ` +
+                            `Please introduce yourself to the store assistant in one sentence, in character.`
+                        );
                     }
                 });
 
@@ -181,8 +192,16 @@ export default function ScenarioSession() {
         buffer.forEach(e => setTranscript(prev => [...prev, { role: "user", ...e }]));
         const userText = buffer.map(e => e.text).join(" ");
 
-        // Send STT text directly to HeyGen's FULL-mode LLM — avatar responds as the persona
-        sessionRef.current?.message(userText);
+        if (!scenario) return;
+        const { persona } = scenario;
+        const facts = persona.implicitFacts.map((f, i) => `${i + 1}. ${f}`).join(" ");
+        sessionRef.current?.message(
+            `You are ${persona.name}, a ${persona.age}-year-old customer. ` +
+            `Your mood is ${persona.mood}. ${persona.context} ` +
+            `Private knowledge — only reveal if directly asked: ${facts} ` +
+            `The store assistant just said: "${userText}". ` +
+            `Respond as ${persona.name} in 1-2 sentences, in character.`
+        );
     }
 
     // ── Countdown timer ───────────────────────────────────────────────────────
