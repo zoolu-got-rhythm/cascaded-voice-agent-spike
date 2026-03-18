@@ -1,5 +1,6 @@
 use @heygen/liveavatar-web-sdk from npm for TTS
 example repo for liveAvatar: https://github.com/heygen-com/liveavatar-web-sdk?tab=readme-ov-file 
+liveAvatar api docs: https://docs.liveavatar.com/docs/getting-started 
 
 liveAvatar configuration options:
 Avatar (Visual Layer) — Defines what the avatar looks like. Choose from a wide selection of avatars, each with unique styles, appearances, and expressions.
@@ -9,4 +10,6 @@ Interactivity Type (Conversational Layer) — Controls how/when you want the ava
 
 
 claude api (haiku 4.5) for lowest latency
+
+deepgram flux docs: https://developers.deepgram.com/docs/flux/quickstart 
 see: https://github.com/deepgram-devs/deepgram-demos-flux-streaming for proxy web socket server demo code 
