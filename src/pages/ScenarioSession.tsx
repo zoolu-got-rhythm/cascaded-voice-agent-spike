@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Box, Typography, Button, Paper, IconButton, CircularProgress, Skeleton } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
+import MicOffIcon from "@mui/icons-material/MicOff";
 import Header from "../components/Header";
 import PageBreadcrumbs from "../components/PageBreadcrumbs";
 import CountdownClock from "../components/CountdownClock";
@@ -64,6 +65,8 @@ export default function ScenarioSession() {
     const transcriptEndRef = useRef<HTMLDivElement>(null);
     const listenDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isListeningRef = useRef(false);
+    const isAvatarTalkingRef = useRef(true);
+    const isAvatarReadyRef = useRef(false);
 
     // ── HeyGen session ────────────────────────────────────────────────────────
     useEffect(() => {
@@ -113,6 +116,7 @@ export default function ScenarioSession() {
 
                 session.on(SessionEvent.SESSION_STREAM_READY, () => {
                     if (videoRef.current) session.attach(videoRef.current);
+                    isAvatarReadyRef.current = true;
                     setIsAvatarReady(true);
                 });
 
@@ -122,11 +126,13 @@ export default function ScenarioSession() {
                 });
 
                 session.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, () => {
+                    isAvatarTalkingRef.current = true;
                     setIsAvatarTalking(true);
                     stopListening();
                 });
 
                 session.on(AgentEventsEnum.AVATAR_SPEAK_ENDED, () => {
+                    isAvatarTalkingRef.current = false;
                     setIsAvatarTalking(false);
                     startListening();
                 });
@@ -249,7 +255,9 @@ export default function ScenarioSession() {
     }
 
     function handleMicClick() {
-        if (isListening) stopListening();
+        if (isAvatarTalkingRef.current || !isAvatarReadyRef.current) return;
+        if (isListeningRef.current) stopListening();
+        else startListening();
     }
 
     useEffect(() => {
@@ -308,15 +316,17 @@ export default function ScenarioSession() {
                     <IconButton
                         size="large"
                         onClick={handleMicClick}
-                        disabled={isAvatarTalking}
+                        disabled={isAvatarTalking || !isAvatarReady}
                         sx={{
-                            bgcolor: isAvatarTalking ? "action.disabledBackground" : isListening ? "error.main" : "action.selected",
+                            bgcolor: (isAvatarTalking || !isAvatarReady) ? "action.disabledBackground" : isListening ? "error.main" : "action.selected",
                             "&:hover": { bgcolor: isListening ? "error.dark" : "action.focus" },
                         }}
                     >
-                        {isListening && !showListening
-                            ? <CircularProgress size={32} sx={{ color: "white" }} />
-                            : <MicIcon sx={{ fontSize: 48, color: isListening ? "white" : "text.primary" }} />
+                        {(isAvatarTalking || !isAvatarReady)
+                            ? <MicOffIcon sx={{ fontSize: 48 }} />
+                            : isListening && !showListening
+                                ? <CircularProgress size={32} sx={{ color: "white" }} />
+                                : <MicIcon sx={{ fontSize: 48, color: isListening ? "white" : "text.primary" }} />
                         }
                     </IconButton>
                     <Typography variant="caption" color="text.disabled">
